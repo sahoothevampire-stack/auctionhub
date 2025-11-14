@@ -19,22 +19,60 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<any>
 ) {
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
     const { user_id } = req.query;
-    const { requestId, status } = req.body;
+
+    // Basic request logging to help debug DigiLocker payloads
+    try {
+      const safeHeaders = { ...req.headers } as any;
+      // avoid logging any authorization-like headers fully
+      if (safeHeaders.authorization) safeHeaders.authorization = '[REDACTED]';
+      console.log('Incoming webhook:', {
+        method: req.method,
+        url: req.url,
+        headers: safeHeaders,
+        query: req.query,
+        body: typeof req.body === 'object' ? JSON.stringify(req.body) : req.body,
+      });
+    } catch (e) {
+      console.log('Failed to stringify incoming request for logs', e);
+    }
+
+    // Accept requestId/status either in body (POST) or in query (GET callbacks)
+    let requestId: string | undefined;
+    let status: any = undefined;
+
+    if (req.method === 'POST') {
+      requestId = req.body?.requestId || req.body?.requestid || req.body?.requistID || req.body?.requistId;
+      status = req.body?.status;
+    } else {
+      // GET - DigiLocker/browser redirect may send params in query
+      requestId = (req.query?.requestId || req.query?.requestid || req.query?.requistID || req.query?.requistId || req.query?.reqid || req.query?.request_id) as string | undefined;
+      status = req.query?.status;
+    }
 
     // Validate required fields
     if (!requestId) {
+      if (req.method === 'GET') {
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(400).send(`<html><body><h1>Missing requestId</h1><p>DigiLocker did not provide a requestId.</p></body></html>`);
+      }
+
       return res.status(400).json({
         error: 'Missing required field: requestId',
       });
     }
 
     if (!user_id) {
+      if (req.method === 'GET') {
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(400).send(`<html><body><h1>Missing user_id</h1><p>Callback did not include user_id query param.</p></body></html>`);
+      }
+
       return res.status(400).json({
         error: 'Missing required parameter: user_id',
       });
@@ -64,6 +102,7 @@ export default async function handler(
     }
 
     // Now fetch the actual Aadhaar details using the requestId
+    console.log('Fetching Aadhaar details from DigiLocker for requestId:', requestId);
     const aadhaarResponse = await fetchAadhaarDetailsFromDigiLocker(requestId);
 
     if (!aadhaarResponse.status || !aadhaarResponse.data) {
@@ -89,6 +128,7 @@ export default async function handler(
       address: aadhaarData.address,
     };
 
+    console.log('Storing verification data for user:', user_id, 'maskedAadhaarNo:', verificationData.aadhar_no ? verificationData.aadhar_no : '[N/A]');
     await storeVerificationData(user_id as string, verificationData, false); // false = success
 
     // Return success response to acknowledge webhook receipt
@@ -113,24 +153,39 @@ async function fetchAadhaarDetailsFromDigiLocker(requestId: string) {
   const RC_TOKEN = config.RC_DETAIL_PRIME_API_AUTH_TOKEN;
 
   try {
+    const payload = new URLSearchParams({
+      user_id: RC_USER_ID,
+      task: 'getEaadhaar',
+      requistID: requestId,
+    }).toString();
+
+    console.log('Calling DigiLocker API', { url: RC_BASE_URL + 'digilockeraadhaardetails', payload: `[form-data:${payload.length}chars]` });
+
     const response = await fetch(RC_BASE_URL + 'digilockeraadhaardetails', {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + RC_TOKEN,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        user_id: RC_USER_ID,
-        task: 'getEaadhaar',
-        requistID: requestId,
-      }).toString(),
+      body: payload,
     });
+
+    const text = await response.text();
+    let data: any = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch (parseErr) {
+      console.error('Failed to parse DigiLocker response JSON:', parseErr, 'raw:', text);
+      throw new Error('Invalid JSON response from DigiLocker');
+    }
+
+    console.log('DigiLocker response status:', response.status, 'responseKeys:', data ? Object.keys(data) : 'null');
 
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
     }
 
-    return response.json();
+    return data;
   } catch (error: any) {
     console.error('Error fetching Aadhaar details:', error);
     throw error;
@@ -144,19 +199,32 @@ async function storeVerificationData(userId: string, aadhaarData: any, isFailed:
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
   try {
+    const payload = { aadhaarData, isFailed };
+    console.log('Storing verification data to status API', { url: `${API_URL}/api/aadhaar-verification-status`, userId, isFailed, payloadSize: JSON.stringify(payload).length });
+
     const response = await fetch(`${API_URL}/api/aadhaar-verification-status?user_id=${userId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ aadhaarData, isFailed }),
+      body: JSON.stringify(payload),
     });
+
+    const respText = await response.text();
+    let respJson: any = null;
+    try {
+      respJson = respText ? JSON.parse(respText) : null;
+    } catch (parseErr) {
+      console.error('Failed to parse response from status API:', parseErr, 'raw:', respText);
+    }
+
+    console.log('Status API response:', { ok: response.ok, status: response.status, keys: respJson ? Object.keys(respJson) : 'raw-string' });
 
     if (!response.ok) {
       throw new Error(`Failed to store verification data: ${response.status}`);
     }
 
-    return response.json();
+    return respJson;
   } catch (error: any) {
     console.error('Error storing verification data:', error);
     throw error;
