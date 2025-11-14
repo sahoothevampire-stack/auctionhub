@@ -1,0 +1,21 @@
+{
+    "status": true,
+    "statusCode": 200,
+    "message": "Record Found",
+    "data": {
+        "userName": "ZAHOOR AHMAD LONE",
+        "DOB": "03-Sep-1996",
+        "gender": "M",
+        "maskedAadhaarNo": "xxxxxxxx5835",
+        "address": ", -, -, GUZRYAL, , Guzriyal, Kupwara, Jammu and Kashmir, 193224",
+        "splitAddress": {
+            "state": "Jammu and Kashmir",
+            "city": "Guzriyal",
+            "pincode": "193224",
+            "country": "India",
+            "addressLine": " - - GUZRYAL "
+        },
+        "image": "data:image/png;base64,/9j/4AAQSkZJRgABAgAAAQABAAD...",
+        "fileXml": "https://media.kyckart.com/395/digi-files/aadhaarxml-1762420863.xml"
+    }
+}

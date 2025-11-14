@@ -1,0 +1,128 @@
+[
+  {
+    "id": 1,
+    "title": "3BHK Apartment in Jaipur",
+    "city": "Jaipur",
+    "state": "Rajasthan",
+    "category": "Property",
+    "price": "₹45,00,000",
+    "basePrice": 4500000,
+    "auctionType": "Open",
+    "image": "property1.jpg",
+    "status": "Live",
+    "stage": "enquiry",
+    "sellerType": "Bank",
+    "endDate": "2025-11-15T18:00:00",
+    "description": "Spacious 3BHK apartment in prime location of Jaipur with modern amenities",
+    "specifications": {
+      "area": "1450 sq ft",
+      "ownership": "Freehold",
+      "floor": "5th Floor"
+    }
+  },
+  {
+    "id": 2,
+    "title": "Industrial Equipment - Delhi",
+    "city": "Delhi",
+    "state": "Delhi",
+    "category": "Non-Motor",
+    "price": "₹12,00,000",
+    "basePrice": 1200000,
+    "auctionType": "Close",
+    "image": "equipment1.jpg",
+    "status": "Upcoming",
+    "stage": "enquiry",
+    "sellerType": "Insurance",
+    "endDate": "2025-11-20T15:00:00",
+    "description": "Heavy industrial equipment suitable for manufacturing operations",
+    "specifications": {
+      "type": "CNC Machine",
+      "condition": "Good",
+      "year": "2020"
+    }
+  },
+  {
+    "id": 3,
+    "title": "2BHK Flat in Mumbai",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "category": "Property",
+    "price": "₹85,00,000",
+    "basePrice": 8500000,
+    "auctionType": "Open",
+    "image": "property2.jpg",
+    "status": "Live",
+    "stage": "verification",
+    "sellerType": "Bank",
+    "endDate": "2025-11-12T20:00:00",
+    "description": "Compact 2BHK flat in Mumbai's bustling commercial area",
+    "specifications": {
+      "area": "950 sq ft",
+      "ownership": "Freehold",
+      "floor": "3rd Floor"
+    }
+  },
+  {
+    "id": 4,
+    "title": "Commercial Plot - Bangalore",
+    "city": "Bangalore",
+    "state": "Karnataka",
+    "category": "Property",
+    "price": "₹1,20,00,000",
+    "basePrice": 12000000,
+    "auctionType": "Close",
+    "image": "property3.jpg",
+    "status": "Upcoming",
+    "stage": "verification",
+    "sellerType": "Private",
+    "endDate": "2025-11-25T14:00:00",
+    "description": "Prime commercial plot in IT corridor of Bangalore",
+    "specifications": {
+      "area": "3000 sq ft",
+      "ownership": "Freehold",
+      "zone": "Commercial"
+    }
+  },
+  {
+    "id": 5,
+    "title": "Construction Machinery - Chennai",
+    "city": "Chennai",
+    "state": "Tamil Nadu",
+    "category": "Non-Motor",
+    "price": "₹8,50,000",
+    "basePrice": 850000,
+    "auctionType": "Open",
+    "image": "equipment2.jpg",
+    "status": "Live",
+    "stage": "bidding",
+    "sellerType": "Bank",
+    "endDate": "2025-11-14T16:00:00",
+    "description": "High-capacity construction equipment for large projects",
+    "specifications": {
+      "type": "Excavator",
+      "condition": "Excellent",
+      "year": "2021"
+    }
+  },
+  {
+    "id": 6,
+    "title": "Villa in Hyderabad",
+    "city": "Hyderabad",
+    "state": "Telangana",
+    "category": "Property",
+    "price": "₹1,50,00,000",
+    "basePrice": 15000000,
+    "auctionType": "Open",
+    "image": "property4.jpg",
+    "status": "Live",
+    "stage": "bidding",
+    "sellerType": "Insurance",
+    "endDate": "2025-11-18T19:00:00",
+    "description": "Luxurious villa with private garden and swimming pool",
+    "specifications": {
+      "area": "4500 sq ft",
+      "ownership": "Freehold",
+      "bedrooms": "5"
+    }
+  }
+]

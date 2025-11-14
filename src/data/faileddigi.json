@@ -1,0 +1,27 @@
+{
+    "status": false,
+    "statusCode": 209,
+    "message": "Digilocker APIs Failed",
+    "data": {
+        "status": {
+            "statusCode": 400,
+            "statusMessage": "Digilocker APIs Failed",
+            "checkId": "checkId",
+            "groupId": "groupId"
+        },
+        "error": {
+            "title": "Invalid request params",
+            "message": "Digilocker Authorization is not complete!",
+            "info": {
+                "type": "fullScreen",
+                "data": {
+                    "description": "Something went wrong.",
+                    "cta": "retry",
+                    "label": "Retry"
+                }
+            },
+            "type": "error",
+            "code": "E0010002"
+        }
+    }
+}

@@ -1,0 +1,21 @@
+{
+	"status": true,
+	"statusCode": 200,
+	"message": "Record Found",
+	"data": {
+		"name": "RANJANKUMAR MADHUSUDAN SAHOO",
+		"panNumber": "EIMPS9079D",
+		"typeOfHolder": "Individual or Person",
+		"isIndividual": true,
+		"isValid": true,
+		"firstName": "RANJANKUMAR",
+		"middleName": "MADHUSUDAN",
+		"lastName": "SAHOO",
+		"title": "",
+		"panStatus": "VALID",
+		"panStatusCode": "E",
+		"aadhaarSeedingStatus": "Successful",
+		"aadhaarSeedingStatusCode": "Y",
+		"lastUpdatedOn": "Invalid date"
+	}
+}

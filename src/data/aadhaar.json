@@ -1,0 +1,10 @@
+{
+    "status": true,
+    "statusCode": 200,
+    "message": "Digilocker Create URL Request Processed",
+    "data": {
+        "requestId": "a8af6206a1138ee55840c6bbaa621c4d",
+        "url": "https://api.digitallocker.gov.in/public/oauth2/1/authorize?response_type=code&client_id=CE07F040&redirect_uri=https://sandbox.kyckart.com/page/digilocker-auth-complete&state=a8af6206a1138ee55840c6bbaa621c4d&pla=Y",
+        "callBackUrl": "https://fdsqoh08yl.execute-api.ap-south-1.amazonaws.com/prod/verify-aadhaar-webhook"
+    }
+}

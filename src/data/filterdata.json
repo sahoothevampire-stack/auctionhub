@@ -1,0 +1,216 @@
+{
+	"success": true,
+	"message": "Successful",
+	"result": {
+		"regions": [
+			{
+				"id": 18,
+				"display_name": "Bihar"
+			},
+			{
+				"id": 17,
+				"display_name": "GIP"
+			},
+			{
+				"id": 16,
+				"display_name": "KL"
+			},
+			{
+				"id": 15,
+				"display_name": "Flood"
+			},
+			{
+				"id": 14,
+				"display_name": "Transit"
+			},
+			{
+				"id": 13,
+				"display_name": "Superdari"
+			},
+			{
+				"id": 12,
+				"display_name": "UP UK"
+			},
+			{
+				"id": 11,
+				"display_name": "TN"
+			},
+			{
+				"id": 10,
+				"display_name": "Theft"
+			},
+			{
+				"id": 9,
+				"display_name": "RJ"
+			},
+			{
+				"id": 8,
+				"display_name": "MP"
+			},
+			{
+				"id": 7,
+				"display_name": "MH GOA"
+			},
+			{
+				"id": 6,
+				"display_name": "KA"
+			},
+			{
+				"id": 5,
+				"display_name": "HR PB"
+			},
+			{
+				"id": 4,
+				"display_name": "GJ"
+			},
+			{
+				"id": 3,
+				"display_name": "East"
+			},
+			{
+				"id": 2,
+				"display_name": "Delhi NCR"
+			},
+			{
+				"id": 1,
+				"display_name": "AP TS"
+			}
+		],
+		"price_range": [
+			{
+				"min": 0,
+				"max": 99999999
+			}
+		],
+		"cities": [
+			{
+				"id": 3,
+				"display_name": "Adilabad"
+			},
+			{
+				"id": 129,
+				"display_name": "Ahmedabad"
+			},
+			{
+				"id": 577,
+				"display_name": "Almora"
+			},
+			{
+				"id": 10145,
+				"display_name": "Ankleshwar"
+			},
+			{
+				"id": 593,
+				"display_name": "Asansol"
+			},
+			{
+				"id": 535,
+				"display_name": "Ghaziabad"
+			},
+			{
+				"id": 162,
+				"display_name": "Gurgaon"
+			},
+			{
+				"id": 125,
+				"display_name": "New Delhi"
+			}
+		],
+		"property_types": [
+			{
+				"id": 27,
+				"name": "Bungalow"
+			},
+			{
+				"id": 25,
+				"name": "Commercial Building"
+			},
+			{
+				"id": 9,
+				"name": "Commercial Plot"
+			},
+			{
+				"id": 23,
+				"name": "Factory"
+			},
+			{
+				"id": 5,
+				"name": "Farmhouse"
+			},
+			{
+				"id": 3,
+				"name": "Independent House"
+			},
+			{
+				"id": 29,
+				"name": "Industrial"
+			},
+			{
+				"id": 6,
+				"name": "Luxury Villa"
+			},
+			{
+				"id": 10,
+				"name": "Office Space"
+			},
+			{
+				"id": 26,
+				"name": "Residential Floor"
+			},
+			{
+				"id": 7,
+				"name": "Residential Plot"
+			},
+			{
+				"id": 22,
+				"name": "Shop"
+			},
+			{
+				"id": 21,
+				"name": "Showroom"
+			}
+		],
+		"sellers": [
+			{
+				"id": 3,
+				"name": "Ashish Seller"
+			},
+			{
+				"id": 31,
+				"name": "Mohit sirova"
+			},
+			{
+				"id": 22,
+				"name": "N/A"
+			},
+			{
+				"id": 0,
+				"name": "N/A"
+			},
+			{
+				"id": 45,
+				"name": "Pawan"
+			},
+			{
+				"id": 18,
+				"name": "PraveenS"
+			},
+			{
+				"id": 37,
+				"name": "Ramesh Bhaguni"
+			},
+			{
+				"id": 39,
+				"name": "Tata Capital Financial Services Ltd"
+			},
+			{
+				"id": 65,
+				"name": "home auction seller Dec5"
+			},
+			{
+				"id": 50,
+				"name": "ranjan"
+			}
+		]
+	}
+}
