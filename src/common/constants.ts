@@ -3,7 +3,7 @@
  */
 const LOCAL_API_URL = 'http://localhost:3000/';
 const DEVELOPMENT_API_URL = 'https://fdsqoh08yl.execute-api.ap-south-1.amazonaws.com/prod/';
-const PRODUCTION_API_URL = 'https://l5l656gvx0.execute-api.ap-south-1.amazonaws.com/prod/';
+const PRODUCTION_API_URL = 'https://fdsqoh08yl.execute-api.ap-south-1.amazonaws.com/prod/';
 
 /**
  * CarDekho API URL constants for different environments
