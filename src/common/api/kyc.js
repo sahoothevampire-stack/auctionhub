@@ -22,6 +22,13 @@ export async function fetchPanDetails(pan_no) {
 
 export async function fetchDigiLockerUrl(userAuthId) {
   // userAuthId is the actual user_id from auth state (passed from component)
+  // Determine the base URL for the callback (use window.location for client-side calls)
+  const baseUrl = typeof window !== 'undefined' 
+    ? `${window.location.protocol}//${window.location.host}`
+    : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  
+  const callbackUrl = `${baseUrl}/api/verify-aadhaar-webhook?user_id=${userAuthId}`;
+  
   const response = await fetch(config.RC_BASE_URL + 'digilockeraadhaardetails', {
     method: 'POST',
     headers: {
@@ -31,7 +38,7 @@ export async function fetchDigiLockerUrl(userAuthId) {
     body: new URLSearchParams({
       user_id: config.RC_DETAIL_PRIME_API_USER_ID,
       task: 'createurl',
-      callbackurl: config.API_URL + `verify-aadhaar-webhook?user_id=${userAuthId}`,
+      callbackurl: callbackUrl,
     }).toString(),
   });
 
@@ -48,6 +55,13 @@ export async function fetchDigiLockerUrl(userAuthId) {
  * @returns {Promise<Object>} Aadhaar details
  */
 export async function fetchAadhaarDetails(requestId) {
+  // Determine the base URL for the callback
+  const baseUrl = typeof window !== 'undefined' 
+    ? `${window.location.protocol}//${window.location.host}`
+    : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  
+  const callbackUrl = `${baseUrl}/api/verify-aadhaar-webhook`;
+  
   const response = await fetch(config.RC_BASE_URL + 'digilockeraadhaardetails', {
     method: 'POST',
     headers: {
@@ -57,7 +71,7 @@ export async function fetchAadhaarDetails(requestId) {
     body: new URLSearchParams({
       user_id: config.RC_DETAIL_PRIME_API_USER_ID,
       task: 'getEaadhaar',
-      callbackurl: config.API_URL + 'verify-aadhaar-webhook',
+      callbackurl: callbackUrl,
       requistID: requestId,
     }).toString(),
   });
