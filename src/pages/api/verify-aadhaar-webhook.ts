@@ -46,13 +46,38 @@ export default async function handler(
     let requestId: string | undefined;
     let status: any = undefined;
 
+    // Helper to robustly extract query params from malformed URLs (multiple '?')
+    function getAllQueryParams(req: NextApiRequest): Record<string, string> {
+      let query: Record<string, string> = {};
+      // If req.url is present, parse it manually for all params
+      if (req.url) {
+        let url = req.url;
+        // If there are multiple '?', join them as '&' to parse all params
+        const qIndex = url.indexOf('?');
+        if (qIndex !== -1) {
+          let queryString = url.slice(qIndex + 1).replace(/\?/g, '&');
+          for (const part of queryString.split('&')) {
+            const [k, v] = part.split('=');
+            if (k) query[decodeURIComponent(k)] = v ? decodeURIComponent(v) : '';
+          }
+        }
+      }
+      // Merge with req.query (Next.js already parses some params)
+      for (const k in req.query) {
+        if (typeof req.query[k] === 'string') query[k] = req.query[k] as string;
+        else if (Array.isArray(req.query[k])) query[k] = req.query[k][0];
+      }
+      return query;
+    }
+
     if (req.method === 'POST') {
       requestId = req.body?.requestId || req.body?.requestid || req.body?.requistID || req.body?.requistId;
       status = req.body?.status;
     } else {
-      // GET - DigiLocker/browser redirect may send params in query
-      requestId = (req.query?.requestId || req.query?.requestid || req.query?.requistID || req.query?.requistId || req.query?.reqid || req.query?.request_id) as string | undefined;
-      status = req.query?.status;
+      // GET - DigiLocker/browser redirect may send params in query, sometimes with malformed URL
+      const allParams = getAllQueryParams(req);
+      requestId = allParams.requestId || allParams.requestid || allParams.requistID || allParams.requistId || allParams.reqid || allParams.request_id;
+      status = allParams.status;
     }
 
     // Validate required fields
