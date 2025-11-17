@@ -3,17 +3,14 @@ import config from '@/common/constants';
 
 /**
  * Webhook endpoint to receive DigiLocker authorization callback
- * Called by DigiLocker after user authorizes Aadhaar sharing
- * Contains the request ID needed to fetch actual Aadhaar details
+ * Called by DigiLocker after user authorizes/denies Aadhaar sharing
  * 
- * Expected query params from callback URL:
- * - user_id: the authenticated user's ID (passed in callback URL during createurl)
+ * Expected URL format: /api/verify-aadhaar-webhook/[userId]
  * 
- * Expected body from DigiLocker:
- * {
- *   "requestId": "be9640c5e47c42ce453bd9927ccc4",
- *   ... other fields
- * }
+ * Expected query params from DigiLocker callback:
+ * - state: the requestId needed to fetch actual Aadhaar details
+ * - confirmAuthorization: 'true' if authorized, 'false' if denied
+ * - taskId: optional task ID from DigiLocker
  */
 export default async function handler(
   req: NextApiRequest,
@@ -24,116 +21,74 @@ export default async function handler(
   }
 
   try {
-    const { user_id } = req.query;
+    // Extract userId from URL path: /api/verify-aadhaar-webhook/[userId]
+    const { userId } = req.query;
+    
+    // DigiLocker sends data as GET query parameters
+    const { state, confirmAuthorization, taskId } = req.query;
 
     // Basic request logging to help debug DigiLocker payloads
     try {
-      const safeHeaders = { ...req.headers } as any;
-      // avoid logging any authorization-like headers fully
-      if (safeHeaders.authorization) safeHeaders.authorization = '[REDACTED]';
-      console.log('Incoming webhook:', {
+      console.log('DigiLocker webhook request:', {
         method: req.method,
-        url: req.url,
-        headers: safeHeaders,
-        query: req.query,
-        body: typeof req.body === 'object' ? JSON.stringify(req.body) : req.body,
+        userId,
+        state,
+        confirmAuthorization,
+        taskId,
+        fullUrl: req.url,
       });
     } catch (e) {
-      console.log('Failed to stringify incoming request for logs', e);
+      console.log('Failed to log webhook request', e);
     }
 
-    // Accept requestId/status either in body (POST) or in query (GET callbacks)
-    let requestId: string | undefined;
-    let status: any = undefined;
-
-    // Helper to robustly extract query params from malformed URLs (multiple '?')
-    function getAllQueryParams(req: NextApiRequest): Record<string, string> {
-      let query: Record<string, string> = {};
-      // If req.url is present, parse it manually for all params
-      if (req.url) {
-        let url = req.url;
-        // If there are multiple '?', join them as '&' to parse all params
-        const qIndex = url.indexOf('?');
-        if (qIndex !== -1) {
-          let queryString = url.slice(qIndex + 1).replace(/\?/g, '&');
-          for (const part of queryString.split('&')) {
-            const [k, v] = part.split('=');
-            if (k) query[decodeURIComponent(k)] = v ? decodeURIComponent(v) : '';
-          }
-        }
-      }
-      // Merge with req.query (Next.js already parses some params)
-      for (const k in req.query) {
-        if (typeof req.query[k] === 'string') query[k] = req.query[k] as string;
-        else if (Array.isArray(req.query[k])) query[k] = req.query[k][0];
-      }
-      return query;
-    }
-
-    if (req.method === 'POST') {
-      requestId = req.body?.requestId || req.body?.requestid || req.body?.requistID || req.body?.requistId;
-      status = req.body?.status;
-    } else {
-      // GET - DigiLocker/browser redirect may send params in query, sometimes with malformed URL
-      const allParams = getAllQueryParams(req);
-      requestId = allParams.requestId || allParams.requestid || allParams.requistID || allParams.requistId || allParams.reqid || allParams.request_id;
-      status = allParams.status;
-    }
+    // Extract requestId from 'state' parameter (DigiLocker sends it as state)
+    const requestId = state as string | undefined;
 
     // Validate required fields
     if (!requestId) {
-      if (req.method === 'GET') {
-        res.setHeader('Content-Type', 'text/html');
-        return res.status(400).send(`<html><body><h1>Missing requestId</h1><p>DigiLocker did not provide a requestId.</p></body></html>`);
-      }
-
-      return res.status(400).json({
-        error: 'Missing required field: requestId',
+      console.error('DigiLocker webhook: missing requestId (state parameter)');
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing requestId from DigiLocker callback' 
       });
     }
 
-    if (!user_id) {
-      if (req.method === 'GET') {
-        res.setHeader('Content-Type', 'text/html');
-        return res.status(400).send(`<html><body><h1>Missing user_id</h1><p>Callback did not include user_id query param.</p></body></html>`);
-      }
-
-      return res.status(400).json({
-        error: 'Missing required parameter: user_id',
+    if (!userId) {
+      console.error('DigiLocker webhook: missing userId in path');
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing user ID in callback URL' 
       });
     }
 
-    console.log('DigiLocker webhook received with requestId:', requestId, 'for user:', user_id);
+    console.log('DigiLocker webhook received with requestId:', requestId, 'for user:', userId);
 
     // Check if DigiLocker authorization failed or was cancelled
-    if (status === false || status === 'false' || (status && String(status).toLowerCase() === 'false')) {
-      console.log('DigiLocker authorization failed for user:', user_id);
+    const isAuthorized = confirmAuthorization === 'true' || String(confirmAuthorization).toLowerCase() === 'true';
+    
+    if (!isAuthorized) {
+      console.log('DigiLocker authorization denied or cancelled by user for requestId:', requestId);
       
-      // Store failure data for polling
-      const failureData = {
-        name_on_aadhar: null,
-        aadhar_no: null,
-        dob: null,
-        gender: null,
-        address: null,
-        error: 'DigiLocker authorization failed',
-      };
-
+      // Store failure state
       try {
-        await storeVerificationData(user_id as string, failureData, true); // true = failure
+        await storeVerificationData(
+          userId as string,
+          {
+            requestId,
+            status: false,
+            error: 'User denied authorization or authorization was cancelled',
+            deniedAt: new Date().toISOString(),
+          },
+          true
+        );
       } catch (storeErr) {
-        console.error('Failed to store authorization failure:', storeErr);
+        console.error('Failed to store denial:', storeErr);
       }
 
-      // Return error response so frontend can display user-friendly message
-      if (req.method === 'GET') {
-        res.setHeader('Content-Type', 'text/html');
-        return res.status(200).send(`<html><body><h1>Authorization Failed</h1><p>DigiLocker authorization was cancelled or failed. Please try again.</p></body></html>`);
-      }
       return res.status(200).json({
         success: false,
-        error: 'DigiLocker authorization failed',
-        message: 'Authorization was cancelled or failed. Please try again.',
+        error: 'Authorization was denied. Please try again.',
+        requestId,
       });
     }
 
@@ -143,64 +98,52 @@ export default async function handler(
     try {
       aadhaarResponse = await fetchAadhaarDetailsFromDigiLocker(requestId);
     } catch (fetchErr: any) {
-      console.error('Error fetching Aadhaar details:', fetchErr);
+      console.error('Error fetching Aadhaar details:', fetchErr.message);
       
-      // Store failure on fetch error (timeout, network issue, etc.)
-      const failureData = {
-        name_on_aadhar: null,
-        aadhar_no: null,
-        dob: null,
-        gender: null,
-        address: null,
-        error: 'Failed to fetch Aadhaar details from DigiLocker',
-      };
-      
+      // Store timeout/fetch error
       try {
-        await storeVerificationData(user_id as string, failureData, true); // true = failure
+        await storeVerificationData(
+          userId as string,
+          {
+            requestId,
+            error: `Failed to fetch Aadhaar details: ${fetchErr.message}`,
+            failedAt: new Date().toISOString(),
+          },
+          true
+        );
       } catch (storeErr) {
         console.error('Failed to store fetch error:', storeErr);
       }
-      
-      // Return error response
-      if (req.method === 'GET') {
-        res.setHeader('Content-Type', 'text/html');
-        return res.status(200).send(`<html><body><h1>Verification Failed</h1><p>Could not retrieve Aadhaar details from DigiLocker. Error: ${fetchErr.message || 'Unknown error'}</p></body></html>`);
-      }
+
       return res.status(200).json({
         success: false,
-        error: 'Failed to fetch Aadhaar details',
-        message: fetchErr.message || 'Timeout or network error',
+        error: 'Failed to fetch Aadhaar details. Please try again later.',
+        requestId,
       });
     }
 
     if (!aadhaarResponse || !aadhaarResponse.status || !aadhaarResponse.data) {
-      console.error('Invalid Aadhaar response:', aadhaarResponse);
+      console.error('Invalid Aadhaar response from DigiLocker:', aadhaarResponse);
       
-      // Store failure on invalid response
-      const failureData = {
-        name_on_aadhar: null,
-        aadhar_no: null,
-        dob: null,
-        gender: null,
-        address: null,
-        error: 'Invalid response from DigiLocker API',
-      };
-      
+      // Store invalid response error
       try {
-        await storeVerificationData(user_id as string, failureData, true); // true = failure
+        await storeVerificationData(
+          userId as string,
+          {
+            requestId,
+            error: 'Invalid response from Aadhaar service',
+            failedAt: new Date().toISOString(),
+          },
+          true
+        );
       } catch (storeErr) {
         console.error('Failed to store invalid response:', storeErr);
       }
-      
-      // Return error response
-      if (req.method === 'GET') {
-        res.setHeader('Content-Type', 'text/html');
-        return res.status(200).send(`<html><body><h1>Verification Failed</h1><p>DigiLocker returned invalid data. Please try again.</p></body></html>`);
-      }
+
       return res.status(200).json({
         success: false,
-        error: 'Failed to fetch Aadhaar details',
-        message: aadhaarResponse?.message || 'Invalid response from DigiLocker',
+        error: 'Invalid response from Aadhaar service',
+        requestId,
       });
     }
 
@@ -210,27 +153,24 @@ export default async function handler(
       maskedAadhaarNo: aadhaarData.maskedAadhaarNo,
     });
 
-    // Store the verification data in the status API
-    const verificationData = {
-      name_on_aadhar: aadhaarData.userName,
-      aadhar_no: aadhaarData.maskedAadhaarNo,
-      dob: aadhaarData.DOB,
-      gender: aadhaarData.gender,
-      address: aadhaarData.address,
-    };
+    // Store the verification data successfully
+    try {
+      await storeVerificationData(userId as string, aadhaarData, false);
+    } catch (storeErr) {
+      console.error('Failed to store success data:', storeErr);
+    }
 
-    console.log('Storing verification data for user:', user_id, 'maskedAadhaarNo:', verificationData.aadhar_no ? verificationData.aadhar_no : '[N/A]');
-    await storeVerificationData(user_id as string, verificationData, false); // false = success
-
-    // Return success response to acknowledge webhook receipt
     return res.status(200).json({
       success: true,
-      message: 'Aadhaar details fetched and stored',
+      message: 'Aadhaar verification completed successfully',
+      requestId,
     });
   } catch (error: any) {
-    console.error('Webhook error:', error);
+    console.error('DigiLocker webhook error:', error);
     return res.status(500).json({
-      error: error.message || 'Webhook processing failed',
+      success: false,
+      error: 'Internal server error',
+      details: error.message,
     });
   }
 }
@@ -244,41 +184,27 @@ async function fetchAadhaarDetailsFromDigiLocker(requestId: string) {
   const RC_TOKEN = config.RC_DETAIL_PRIME_API_AUTH_TOKEN;
 
   try {
-    const payload = new URLSearchParams({
-      user_id: RC_USER_ID,
-      task: 'getEaadhaar',
-      requistID: requestId,
-    }).toString();
-
-    console.log('Calling DigiLocker API', { url: RC_BASE_URL + 'digilockeraadhaardetails', payload: `[form-data:${payload.length}chars]` });
-
     const response = await fetch(RC_BASE_URL + 'digilockeraadhaardetails', {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + RC_TOKEN,
+        'Authorization': `Bearer ${RC_TOKEN}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: payload,
+      body: new URLSearchParams({
+        user_id: RC_USER_ID,
+        task: 'getEaadhaar',
+        callbackurl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/verify-aadhaar-webhook`,
+        requistID: requestId,
+      }).toString(),
     });
-
-    const text = await response.text();
-    let data: any = null;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch (parseErr) {
-      console.error('Failed to parse DigiLocker response JSON:', parseErr, 'raw:', text);
-      throw new Error('Invalid JSON response from DigiLocker');
-    }
-
-    console.log('DigiLocker response status:', response.status, 'responseKeys:', data ? Object.keys(data) : 'null');
 
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
     }
 
-    return data;
+    return response.json();
   } catch (error: any) {
-    console.error('Error fetching Aadhaar details:', error);
+    console.error('DigiLocker API call failed:', error);
     throw error;
   }
 }
@@ -287,12 +213,13 @@ async function fetchAadhaarDetailsFromDigiLocker(requestId: string) {
  * Store verification data for polling via /api/aadhaar-verification-status
  */
 async function storeVerificationData(userId: string, aadhaarData: any, isFailed: boolean = false) {
-
   try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    
     const payload = { aadhaarData, isFailed };
-    console.log('Storing verification data to status API', { url: `${config.APP_URL}/api/aadhaar-verification-status`, userId, isFailed, payloadSize: JSON.stringify(payload).length });
+    console.log('Storing verification data for user:', userId, { isFailed, payloadSize: JSON.stringify(payload).length });
 
-    const response = await fetch(`${config.APP_URL}/api/aadhaar-verification-status?user_id=${userId}`, {
+    const response = await fetch(`${appUrl}/api/aadhaar-verification-status?user_id=${userId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -300,23 +227,16 @@ async function storeVerificationData(userId: string, aadhaarData: any, isFailed:
       body: JSON.stringify(payload),
     });
 
-    const respText = await response.text();
-    let respJson: any = null;
-    try {
-      respJson = respText ? JSON.parse(respText) : null;
-    } catch (parseErr) {
-      console.error('Failed to parse response from status API:', parseErr, 'raw:', respText);
-    }
-
-    console.log('Status API response:', { ok: response.ok, status: response.status, keys: respJson ? Object.keys(respJson) : 'raw-string' });
-
     if (!response.ok) {
+      console.error(`Failed to store verification data: ${response.status}`);
       throw new Error(`Failed to store verification data: ${response.status}`);
     }
 
-    return respJson;
+    const result = await response.json();
+    console.log('Verification data stored successfully:', result);
+    return result;
   } catch (error: any) {
-    console.error('Error storing verification data:', error);
+    console.error('Error storing verification data:', error.message);
     throw error;
   }
 }

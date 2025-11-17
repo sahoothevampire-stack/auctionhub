@@ -42,7 +42,7 @@ export function getCallbackBaseUrl() {
 export async function fetchDigiLockerUrl(userAuthId) {
   // userAuthId is the actual user_id from auth state (passed from component)
   const baseUrl = getCallbackBaseUrl();
-  const callbackUrl = `${baseUrl}/api/verify-aadhaar-webhook?user_id=${userAuthId}`;
+  const callbackUrl = `${baseUrl}/api/verify-aadhaar-webhook/${userAuthId}`;
   
   console.log('Creating DigiLocker URL with callback:', callbackUrl);
   
@@ -71,10 +71,10 @@ export async function fetchDigiLockerUrl(userAuthId) {
  * @param {string} requestId - Request ID from DigiLocker callback
  * @returns {Promise<Object>} Aadhaar details
  */
-export async function fetchAadhaarDetails(requestId) {
+export async function fetchAadhaarDetails(requestId, userAuthId) {
   // Determine the base URL for the callback
   const baseUrl = getCallbackBaseUrl();
-  const callbackUrl = `${baseUrl}/api/verify-aadhaar-webhook`;
+  const callbackUrl = `${baseUrl}/api/verify-aadhaar-webhook/${userAuthId}`;
   
   const response = await fetch(config.RC_BASE_URL + 'digilockeraadhaardetails', {
     method: 'POST',
