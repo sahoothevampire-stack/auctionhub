@@ -105,8 +105,8 @@ export default async function handler(
 
     console.log('DigiLocker webhook received with requestId:', requestId, 'for user:', user_id);
 
-    // Check if DigiLocker authorization failed
-    if (status === false) {
+    // Check if DigiLocker authorization failed or was cancelled
+    if (status === false || status === 'false' || (status && String(status).toLowerCase() === 'false')) {
       console.log('DigiLocker authorization failed for user:', user_id);
       
       // Store failure data for polling
@@ -116,25 +116,91 @@ export default async function handler(
         dob: null,
         gender: null,
         address: null,
+        error: 'DigiLocker authorization failed',
       };
 
-      await storeVerificationData(user_id as string, failureData, true); // true = failure
+      try {
+        await storeVerificationData(user_id as string, failureData, true); // true = failure
+      } catch (storeErr) {
+        console.error('Failed to store authorization failure:', storeErr);
+      }
 
+      // Return error response so frontend can display user-friendly message
+      if (req.method === 'GET') {
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(200).send(`<html><body><h1>Authorization Failed</h1><p>DigiLocker authorization was cancelled or failed. Please try again.</p></body></html>`);
+      }
       return res.status(200).json({
         success: false,
-        message: 'DigiLocker authorization failed',
+        error: 'DigiLocker authorization failed',
+        message: 'Authorization was cancelled or failed. Please try again.',
       });
     }
 
     // Now fetch the actual Aadhaar details using the requestId
     console.log('Fetching Aadhaar details from DigiLocker for requestId:', requestId);
-    const aadhaarResponse = await fetchAadhaarDetailsFromDigiLocker(requestId);
-
-    if (!aadhaarResponse.status || !aadhaarResponse.data) {
-      return res.status(400).json({
+    let aadhaarResponse: any;
+    try {
+      aadhaarResponse = await fetchAadhaarDetailsFromDigiLocker(requestId);
+    } catch (fetchErr: any) {
+      console.error('Error fetching Aadhaar details:', fetchErr);
+      
+      // Store failure on fetch error (timeout, network issue, etc.)
+      const failureData = {
+        name_on_aadhar: null,
+        aadhar_no: null,
+        dob: null,
+        gender: null,
+        address: null,
+        error: 'Failed to fetch Aadhaar details from DigiLocker',
+      };
+      
+      try {
+        await storeVerificationData(user_id as string, failureData, true); // true = failure
+      } catch (storeErr) {
+        console.error('Failed to store fetch error:', storeErr);
+      }
+      
+      // Return error response
+      if (req.method === 'GET') {
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(200).send(`<html><body><h1>Verification Failed</h1><p>Could not retrieve Aadhaar details from DigiLocker. Error: ${fetchErr.message || 'Unknown error'}</p></body></html>`);
+      }
+      return res.status(200).json({
         success: false,
         error: 'Failed to fetch Aadhaar details',
-        message: aadhaarResponse.message || 'Unknown error',
+        message: fetchErr.message || 'Timeout or network error',
+      });
+    }
+
+    if (!aadhaarResponse || !aadhaarResponse.status || !aadhaarResponse.data) {
+      console.error('Invalid Aadhaar response:', aadhaarResponse);
+      
+      // Store failure on invalid response
+      const failureData = {
+        name_on_aadhar: null,
+        aadhar_no: null,
+        dob: null,
+        gender: null,
+        address: null,
+        error: 'Invalid response from DigiLocker API',
+      };
+      
+      try {
+        await storeVerificationData(user_id as string, failureData, true); // true = failure
+      } catch (storeErr) {
+        console.error('Failed to store invalid response:', storeErr);
+      }
+      
+      // Return error response
+      if (req.method === 'GET') {
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(200).send(`<html><body><h1>Verification Failed</h1><p>DigiLocker returned invalid data. Please try again.</p></body></html>`);
+      }
+      return res.status(200).json({
+        success: false,
+        error: 'Failed to fetch Aadhaar details',
+        message: aadhaarResponse?.message || 'Invalid response from DigiLocker',
       });
     }
 
