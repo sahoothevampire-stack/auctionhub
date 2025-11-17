@@ -287,13 +287,12 @@ async function fetchAadhaarDetailsFromDigiLocker(requestId: string) {
  * Store verification data for polling via /api/aadhaar-verification-status
  */
 async function storeVerificationData(userId: string, aadhaarData: any, isFailed: boolean = false) {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
   try {
     const payload = { aadhaarData, isFailed };
-    console.log('Storing verification data to status API', { url: `${API_URL}/api/aadhaar-verification-status`, userId, isFailed, payloadSize: JSON.stringify(payload).length });
+    console.log('Storing verification data to status API', { url: `${config.APP_URL}/api/aadhaar-verification-status`, userId, isFailed, payloadSize: JSON.stringify(payload).length });
 
-    const response = await fetch(`${API_URL}/api/aadhaar-verification-status?user_id=${userId}`, {
+    const response = await fetch(`${config.APP_URL}/api/aadhaar-verification-status?user_id=${userId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
