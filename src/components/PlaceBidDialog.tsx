@@ -22,8 +22,10 @@ interface PlaceBidDialogProps {
 export function PlaceBidDialog({ property, open, onOpenChange, onBidPlaced }: PlaceBidDialogProps) {
   const incrementAmount = property.increment_amount || 10000;
   const [currentBid, setCurrentBid] = useState(property.winner_amount || 0);
+  const [bidderAmount, setBidderAmount] = useState(property.bidder_amount || 0);
   const [bidAmount, setBidAmount] = useState((property.winner_amount || property.reserve_price || 0) + incrementAmount);
   const [isEditing, setIsEditing] = useState(false);
+  const [bidSuccessDialog, showBidSuccessDialog] = useState(false);
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [isExpired, setIsExpired] = useState(false);
   const [currentWinnerId, setCurrentWinnerId] = useState(property.winner_id);
@@ -37,17 +39,10 @@ export function PlaceBidDialog({ property, open, onOpenChange, onBidPlaced }: Pl
   }, [property.winner_amount, property.winner_id, open]);
 
   // Mock top bids
-  const topBids: Array<{ bidder: string; amount: number; isUser: boolean }> = [];
-  if(currentWinnerId){
-    let user = parseInt(userId || "0");
-    if(currentWinnerId == user) {
-      topBids.push({ bidder: "You", amount: currentBid, isUser: true });
-    }
-    else {
-      topBids.push({ bidder: `Bidder #${currentWinnerId}`, amount: currentBid, isUser: false });
-    }
-  }
+  let user = parseInt(userId || "0");
+  if(currentWinnerId == user) {
 
+  }
 
   // Calculate remaining time from end_datetime
   const calculateTimeLeft = () => {
@@ -138,13 +133,15 @@ export function PlaceBidDialog({ property, open, onOpenChange, onBidPlaced }: Pl
 
       // Update the current bid with the newly placed bid
       setCurrentBid(bidAmount);
+      setBidderAmount(bidAmount);
       setCurrentWinnerId(parseInt(userId || "0"));
       
       // Set next minimum bid amount
       const nextMinBid = bidAmount + incrementAmount;
       setBidAmount(nextMinBid);
 
-      toast.success(`Bid placed successfully! 🎉 Your bid of ₹${bidAmount.toLocaleString("en-IN")} has been placed.`);
+      // toast.success(`Bid placed successfully! 🎉 Your bid of ₹${bidAmount.toLocaleString("en-IN")} has been placed.`);
+      showBidSuccessDialog(true);
       
       // Notify parent component to update auction state
       if (onBidPlaced) {
@@ -159,6 +156,17 @@ export function PlaceBidDialog({ property, open, onOpenChange, onBidPlaced }: Pl
   };
 
   const formatTime = (value: number) => value.toString().padStart(2, "0");
+
+  // Auto-close bid success dialog after 2 seconds
+  useEffect(() => {
+    if (!bidSuccessDialog) return;
+
+    const timer = setTimeout(() => {
+      showBidSuccessDialog(false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [bidSuccessDialog]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -195,11 +203,20 @@ export function PlaceBidDialog({ property, open, onOpenChange, onBidPlaced }: Pl
           </div>
 
           {/* Current Bid */}
-          {currentBid > 0 && (
-            <div className="bg-muted p-4 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-1">Current Highest Bid</p>
+          {currentBid > 0 && currentWinnerId == parseInt(userId) && (
+            <div className="bg-green-200 p-4 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">Your Last Bid</p>
               <p className="text-2xl font-bold text-primary">
-                ₹{currentBid.toLocaleString("en-IN")}
+                ₹{currentBid.toLocaleString("en-IN")} (Winning)
+              </p>
+            </div>
+          )}
+
+          {currentBid > 0 && bidderAmount > 0 && currentWinnerId != parseInt(userId) && (
+            <div className="bg-red-100 p-4 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">Your Last Bid</p>
+              <p className="text-2xl font-bold text-primary">
+                ₹{bidderAmount.toLocaleString("en-IN")} (Losing)
               </p>
             </div>
           )}
@@ -252,32 +269,6 @@ export function PlaceBidDialog({ property, open, onOpenChange, onBidPlaced }: Pl
             </p>
           </div>
 
-          {/* Top Bids */}
-          {topBids.length > 0 && (
-            <div className="space-y-2">
-              <Label>Top Bids</Label>
-              <div className="space-y-2">
-                {topBids.map((bid, index) => (
-                  <div
-                    key={index}
-                    className={`flex justify-between items-center p-3 rounded-lg ${
-                      bid.isUser
-                        ? "bg-primary/10 border-2 border-primary"
-                        : "bg-muted"
-                    }`}
-                  >
-                    <span className="font-medium">
-                      {index + 1}. {bid.bidder}
-                    </span>
-                    <span className="font-bold">
-                      ₹{bid.amount}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="flex gap-3 pt-2">
             <Button
               type="button"
@@ -293,6 +284,19 @@ export function PlaceBidDialog({ property, open, onOpenChange, onBidPlaced }: Pl
           </div>
         </form>
       </DialogContent>
+      <Dialog open={bidSuccessDialog} onOpenChange={showBidSuccessDialog}>
+        <DialogContent 
+          className="sm:max-w-[500px] [&>button]:hidden bg-green-200">
+          <DialogHeader className="text-center">
+            <div className="flex flex-col items-center justify-center gap-2">
+              <DialogTitle className="text-2xl font-bold">
+                Bid placed successfully! 🎉
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground">Your bid of ₹{(bidAmount - incrementAmount).toLocaleString("en-IN")} has been placed.</p>
+            </div>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

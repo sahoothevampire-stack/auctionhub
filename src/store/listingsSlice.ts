@@ -2,9 +2,12 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { ListingsState, ListingsResponse } from '@/types/listings';
 import _request from "@/common/api/propertyapi";
 
+// Default records per-page. Make configurable via env var for flexibility.
+const DEFAULT_RECORDS = Number(process.env.NEXT_PUBLIC_LISTINGS_PER_PAGE) || 21;
+
 export const fetchLiveListings = createAsyncThunk(
   'listings/fetchLive',
-  async ({ page = 1, records = 20 }: { page?: number; records?: number } = {}) => {
+  async ({ page = 1, records = DEFAULT_RECORDS }: { page?: number; records?: number } = {}) => {
     try {
       // Use the shared API helper which prepends the configured API_URL
       const responseData = await _request(
@@ -41,7 +44,7 @@ export const fetchLiveListings = createAsyncThunk(
 
 export const fetchUpcomingListings = createAsyncThunk(
   'listings/fetchUpcoming',
-  async ({ page = 1, records = 20 }: { page?: number; records?: number } = {}) => {
+  async ({ page = 1, records = DEFAULT_RECORDS }: { page?: number; records?: number } = {}) => {
     try {
         const responseData = await _request(
           'GET',
@@ -85,7 +88,7 @@ export const fetchFilteredListings = createAsyncThunk(
     {
       filters = {},
       page = 1,
-      records = 20,
+      records = DEFAULT_RECORDS,
       item_status, // optional numeric item_status (2=live,3=upcoming)
     }: {
       filters?: Record<string, string>;
@@ -177,7 +180,7 @@ const initialState: ListingsState = {
   filtered: {
     data: [],
     page: 1,
-    records: 20,
+    records: DEFAULT_RECORDS,
     total: 0,
     hasMore: true,
     loading: false,
@@ -197,7 +200,7 @@ const listingsSlice = createSlice({
         state.filtered = {
           data: [],
           page: 1,
-          records: 20,
+          records: DEFAULT_RECORDS,
           total: 0,
           hasMore: true,
           loading: false,
@@ -244,7 +247,7 @@ const listingsSlice = createSlice({
         state.upcoming.error = action.error.message || 'Failed to fetch upcoming listings';
       });
 
-    // Filtered listings (infinite scroll aware)
+    // Filtered listings (pagination mode)
     builder
       .addCase(fetchFilteredListings.pending, (state) => {
         ensureFiltered(state);
@@ -260,19 +263,24 @@ const listingsSlice = createSlice({
         const items = payload?.data ?? [];
         const total = payload?.total ?? 0;
 
-        if (page > 1) {
-          // append for infinite scroll
-          state.filtered.data = [...state.filtered.data, ...items];
-        } else {
-          // replace on fresh queries
-          state.filtered.data = items;
-        }
+        // Determine the authoritative page size (records per page):
+        // 1) Prefer the `records` requested in the thunk call (action.meta.arg.records)
+        // 2) Fallback to the `records` value returned in payload (payload.records)
+        // 3) Fallback to existing state or default 20
+        // This prevents using the last-page returned item count (which may be smaller)
+        // as the page size for computing total pages.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const requestedRecords = (action as any)?.meta?.arg?.records;
+        const pageSize = requestedRecords ?? payload?.records ?? state.filtered.records ?? DEFAULT_RECORDS;
+
+        // Always replace data for pagination (never append)
+        state.filtered.data = items;
 
         state.filtered.page = page;
-        state.filtered.records = payload?.records ?? items.length;
+        state.filtered.records = pageSize;
         state.filtered.total = total;
-        // hasMore if we've not yet loaded all items
-        state.filtered.hasMore = state.filtered.data.length < total;
+        // hasMore if there are more pages to load
+        state.filtered.hasMore = (page * pageSize) < total;
         state.filtered.loading = false;
         state.filtered.lastFetched = new Date().toISOString();
       })

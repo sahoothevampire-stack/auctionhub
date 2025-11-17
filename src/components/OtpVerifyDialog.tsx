@@ -71,10 +71,8 @@ export function OtpVerifyDialog({ property = null, user, open, onOpenChange }: O
 
         if(result.payload.new_user) {
           toast.success('New user detected. Please complete registration.');
-          if (property) {
-            setShowEnquiry(true);
-          }
           onOpenChange(false);
+          setShowEnquiry(true);
           setOtp("");
           return;
         }
@@ -166,15 +164,14 @@ export function OtpVerifyDialog({ property = null, user, open, onOpenChange }: O
               </DialogHeader>
             </DialogContent>
           </Dialog>
-          
-          <EnquiryDialog
-            property={property}
-            user={user}
-            open={showEnquiry}
-            onOpenChange={setShowEnquiry}
-          />
-        </>
+          </>
       )}
+      <EnquiryDialog
+        property={property}
+        user={user}
+        open={showEnquiry}
+        onOpenChange={setShowEnquiry}
+      />
     </>
   );
 }

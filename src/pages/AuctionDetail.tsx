@@ -1,6 +1,6 @@
 "use client";
 import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useSelector } from 'react-redux';
 import type { RootState } from '@/store/store';
 import _request from '@/common/api/propertyapi';
+import { set } from "react-hook-form";
 
 const AuctionDetail = () => {
   const params = useParams();
@@ -42,9 +43,14 @@ const AuctionDetail = () => {
         ...prev,
         winner_amount: bidAmount,
         winner_id: parseInt(userId),
+        bid_status: 'Winning',
+        bidder_amount: bidAmount
       };
     });
   };
+
+  useEffect(() => {
+  },[auction]);
 
 
   // Extract item_id as a stable primitive before the effect dependency
@@ -65,7 +71,7 @@ const AuctionDetail = () => {
           return;
         }
 
-        const itemResp = await _request('GET', 'home/item-details/', itemId);
+        const itemResp = await _request('GET', 'auctions/item-details/', itemId);
         const details = itemResp && itemResp.result && itemResp.result.length ? itemResp.result[0] : null;
         if (!canceled && details) {
           const reserve = details.reserve_price ?? details.base_price ?? details.basePrice;
@@ -105,6 +111,8 @@ const AuctionDetail = () => {
             sellerType: details.seller_name || details.sellerType || '',
             endDate: details.end_datetime || '',
             startDate: details.start_datetime || '',
+            bidder_amount: details.bidder_amount || 0,
+            bid_status: details.bidder_amount && details.bidder_amount == details.winner_amount ? 'Winning' : 'Losing',
             specifications: details.attributes || [],
             images: details.images && details.images.length > 0 ? details.images : [],
             id: Number(id) || undefined,
@@ -462,9 +470,19 @@ const AuctionDetail = () => {
                         {auction.status}
                       </Badge>
                     </div>
-                    {!!auction.winner_amount && (<div className="flex items-center gap-3 md:gap-4 mt-2">
-                      <p className="text-xl md:text-sm">Highest Bid : ₹{(auction.winner_amount).toLocaleString()}</p>
-                    </div>
+                    {!!auction.bid_status && !!auction.bidder_amount && (
+                      <div className="flex items-center gap-3 md:gap-4 mt-2">
+                        <p className="text-sm md:text-sm">
+                          <b>Highest Bid</b> : ₹{(auction.bidder_amount).toLocaleString()}{' '}
+                          <span className={
+                            auction.bid_status && auction.bid_status.toLowerCase() === 'winning'
+                              ? 'text-green-600 font-semibold'
+                              : 'text-red-600 font-semibold'
+                          }>
+                            ({auction.bid_status})
+                          </span>
+                        </p>
+                      </div>
                     )}
                   </div>
                   <div className="flex gap-1 md:gap-2">
@@ -617,6 +635,7 @@ const AuctionDetail = () => {
           item_id: id?.toString(),
           auction_id: auction.auction_id,
           winner_amount: auction.winner_amount,
+          bidder_amount: auction.bidder_amount,
           winner_id: auction.winner_id,
           increment_amount: auction.increment_amount,
         }}

@@ -38,6 +38,7 @@ export interface AuctionCardProps {
   onEnquire?: (name: string) => void;
   item_id?: string;
   auction_id?: string;
+  bidder_amount?: number;
   winner_amount?: number;
   winner_id?: number;
   increment_amount?: number;
@@ -61,6 +62,7 @@ export const AuctionCard = ({
   item_id,
   auction_id,
   winner_amount,
+  bidder_amount,
   winner_id,
   increment_amount,
   allow_emd_upload,
@@ -270,6 +272,7 @@ export const AuctionCard = ({
             seller_name,
             stage,
             winner_amount,
+            bidder_amount,
             winner_id,
             increment_amount
           }}
@@ -291,6 +294,7 @@ export const AuctionCard = ({
             seller_name,
             stage,
             winner_amount,
+            bidder_amount,
             winner_id,
             increment_amount
           }}
@@ -313,6 +317,7 @@ export const AuctionCard = ({
             stage,
             auction_id,
             winner_amount,
+            bidder_amount,
             winner_id,
             increment_amount
           }}

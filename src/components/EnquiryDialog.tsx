@@ -42,17 +42,32 @@ export function EnquiryDialog({ property, user, open, onOpenChange }: EnquiryDia
 
     try {
       setLoading(true);
-      
-      // Submit enquiry
-      const resp = await _request('POST', 'auctions/submit-enquiry', {
-        item_id: property.id,
-        product_id: property.id,
-        name: formData.fullName,
-        email: formData.email,
-        phone: user.mobile,
-        new_user : true
-      });
+      let resp = null;
 
+      if(property && property.id) {
+        resp = await _request('POST', 'auctions/submit-enquiry', {
+          item_id: property && property.id ? property.id : null,
+          product_id: property && property.id ? property.id : null,
+          name: formData.fullName,
+          email: formData.email,
+          phone: user.mobile,
+          new_user : true
+        });
+      }
+      else {
+        console.log("user", user);
+        const ls = JSON.parse(localStorage.getItem('persist:root'));
+        const loginData = ls && ls.auth? JSON.parse(ls.auth) : '';
+        let userId = loginData ? loginData.user_id : 0;
+        resp = await _request('POST', 'users/update-user', {
+          id: userId,
+          name: formData.fullName,
+          email: formData.email,
+          username: formData.email.split('@')[0] + '_' + Date.now(),
+          phone: user.mobile
+        });
+      }
+      
       if (!resp) {
         toast.error('Failed to submit enquiry');
         return;
@@ -90,16 +105,30 @@ export function EnquiryDialog({ property, user, open, onOpenChange }: EnquiryDia
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <DialogTitle className="text-2xl font-bold mb-1">
-                  Enquire About This Auction
-                </DialogTitle>
-                <p className="text-sm text-muted-foreground">{property.name}</p>
+          {!!property && (
+            <DialogHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <DialogTitle className="text-2xl font-bold mb-1">
+                    Enquire About This Auction
+                  </DialogTitle>
+                  <p className="text-sm text-muted-foreground">{property.name}</p>
+                </div>
               </div>
-            </div>
-          </DialogHeader>
+            </DialogHeader>
+          )}
+          {!property && (
+            <DialogHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <DialogTitle className="text-2xl font-bold mb-1">
+                    Add your details
+                  </DialogTitle>
+                  {/* <p className="text-sm text-muted-foreground">{property.name}</p> */}
+                </div>
+              </div>
+            </DialogHeader>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -179,20 +208,38 @@ export function EnquiryDialog({ property, user, open, onOpenChange }: EnquiryDia
         </DialogContent>
       </Dialog>
       
-      <Dialog open={successPopup} onOpenChange={setSuccessPopup}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <DialogTitle className="text-2xl font-bold mb-1">
-                  Enquiry submitted successfully ✅
-                </DialogTitle>
-                <p className="text-sm text-muted-foreground">We'll contact you soon with property details</p>
+      {property && (
+        <Dialog open={successPopup} onOpenChange={setSuccessPopup}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <DialogTitle className="text-2xl font-bold mb-1">
+                    Enquiry submitted successfully ✅
+                  </DialogTitle>
+                  <p className="text-sm text-muted-foreground">We'll contact you soon with property details</p>
+                </div>
               </div>
-            </div>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
+            </DialogHeader>
+          </DialogContent>
+        </Dialog>
+      )}
+      {!property && (
+        <Dialog open={successPopup} onOpenChange={setSuccessPopup}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <DialogTitle className="text-2xl font-bold mb-1">
+                    User Registered Successfully ✅
+                  </DialogTitle>
+                  <p className="text-sm text-muted-foreground">We'll contact you soon.</p>
+                </div>
+              </div>
+            </DialogHeader>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

@@ -3,8 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
-import { useInView } from "react-intersection-observer";
-import { ArrowLeft, Search, Heart, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Search, Heart, SlidersHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuctionCard } from "@/components/AuctionCard";
@@ -27,7 +26,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { RootState, AppDispatch } from "@/store/store";
 import { fetchFiltersData } from "@/store/filtersSlice";
-import type { PropertyStage } from "@/components/AuctionCard";
+import { SellPropertySection } from "@/components/SellPropertySection";
+import { SEOContent } from "@/components/SEOContent";
 
 const Listings = () => {
   const searchParams = useSearchParams();
@@ -37,21 +37,21 @@ const Listings = () => {
   const initialRenderRef = useRef(true);
   
   // Redux state - wrap in try/catch for SSR safety
-  let filteredAuctions: any[] = [], loading = false, hasMore = false;
+  let filteredAuctions: any[] = [], loading = false, hasMore = false, currentPage = 1, total = 0, recordsPerPage = 20;
   try {
     const filteredState = useSelector((state: RootState) => state.listings.filtered);
     filteredAuctions = filteredState?.data ?? [];
     loading = filteredState?.loading ?? false;
     hasMore = filteredState?.hasMore ?? false;
+    currentPage = filteredState?.page ?? 1;
+    total = filteredState?.total ?? 0;
+    recordsPerPage = filteredState?.records ?? 20;
   } catch (err) {
     console.warn('Redux not initialized yet:', err);
   }
   
-  // Intersection observer for infinite scroll
-  const { ref: loadMoreRef, inView } = useInView({
-    threshold: 0.5,
-    delay: 100
-  });
+  // Get current page from URL query params
+  const pageFromUrl = parseInt(searchParams.get('page') || '1', 10);
 
   useEffect(() => setMounted(true), []);
   const [searchQuery, setSearchQuery] = useState("");
@@ -185,16 +185,16 @@ const Listings = () => {
 
   // Load more when scrolling and inView
   useEffect(() => {
-    if (inView && hasMore && !loading) {
+    if (pageFromUrl !== currentPage) {
       dispatch(fetchFilteredListings({
         filters: {
           ...filters,
           searchQuery,
         },
-        page: Math.ceil(filteredAuctions.length / 20) + 1
+        page: pageFromUrl
       }));
     }
-  }, [inView, hasMore, loading, dispatch, filters, searchQuery, filteredAuctions.length]);
+  }, [pageFromUrl, dispatch, filters, searchQuery]);
 
   const activeFilterCount = [
     filters.maincategoryId,
@@ -472,6 +472,49 @@ const Listings = () => {
 
             <ApiLoader loading={loading} />
       <main className="container px-4 py-4 md:py-6">
+        {/* Dynamic header when filters/search applied */}
+        {((activeFilterCount > 0) || (searchQuery && searchQuery.trim() !== '')) ? (
+          (() => {
+            const count = typeof total === 'number' && total > 0 ? total : filteredAuctions.length;
+            let locationLabel = 'India';
+            if (filters.cityId && String(filters.cityId).toLowerCase() !== 'all' && String(filters.cityId).trim() !== '') {
+              // try resolve from citiesList by id
+              const found = citiesList.find((c: any) => String(c.id) === String(filters.cityId));
+              if (found && found.display_name) locationLabel = found.display_name;
+              else locationLabel = String(filters.cityId);
+            }
+
+            return (
+              <div className="mb-4">
+                <h1 className="text-lg font-semibold leading-tight">
+                  {count} Bank Seized Property Auctions in {locationLabel} which includes Residential &amp; Commercial Listings
+                </h1>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  {(() => {
+                    const pageSize = Math.max(recordsPerPage, 1);
+                    const start = (currentPage - 1) * pageSize + 1;
+                    const end = Math.min(start + filteredAuctions.length - 1, count);
+                    if (count === 0) return <span>No results</span>;
+                    return (
+                      <span>
+                        Showing <span className="font-semibold">{start}</span>
+                        &ndash;
+                        <span className="font-semibold">{end}</span> of <span className="font-semibold">{count}</span> results
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+            );
+          })()
+        ) : (
+          filteredAuctions.length > 0 && (
+            <div className="mb-4 text-sm text-muted-foreground">
+              Page <span className="font-semibold">{currentPage}</span> of{" "}
+              <span className="font-semibold">{Math.ceil(total / Math.max(recordsPerPage, 1))}</span>
+            </div>
+          )
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {filteredAuctions.map((auction) => (
             <AuctionCard
@@ -492,21 +535,47 @@ const Listings = () => {
             </p>
           </div>
         ) : (
-          // Infinite scroll trigger
-          <div 
-            ref={loadMoreRef}
-            className="py-8 text-center"
-          >
-            {loading ? (
-              <p className="text-muted-foreground">Loading more auctions...</p>
-            ) : hasMore ? (
-              <p className="text-muted-foreground">Scroll for more</p>
-            ) : (
-              <p className="text-muted-foreground">No more auctions to load</p>
-            )}
+          // Pagination controls
+          <div className="py-8 flex items-center justify-center gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const newPage = Math.max(1, currentPage - 1);
+                const params = new URLSearchParams(searchParams.toString());
+                params.set('page', String(newPage));
+                router.push(`${window.location.pathname}?${params.toString()}`);
+              }}
+              disabled={currentPage <= 1 || loading}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Previous
+            </Button>
+
+            <div className="text-sm text-muted-foreground">
+              Page <span className="font-semibold">{currentPage}</span> of{" "}
+              <span className="font-semibold">{Math.ceil(total / Math.max(recordsPerPage, 1))}</span>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const newPage = currentPage + 1;
+                const params = new URLSearchParams(searchParams.toString());
+                params.set('page', String(newPage));
+                router.push(`${window.location.pathname}?${params.toString()}`);
+              }}
+              disabled={!hasMore || loading}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
           </div>
         )}
       </main>
+      <SellPropertySection />
+      <SEOContent />
     </div>
   );
 };
