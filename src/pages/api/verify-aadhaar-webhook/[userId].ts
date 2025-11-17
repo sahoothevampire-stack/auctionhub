@@ -53,11 +53,11 @@ export default async function handler(
       });
     }
 
-    if (!userId) {
-      console.error('DigiLocker webhook: missing userId in path');
+    if (!userId || typeof userId !== 'string') {
+      console.error('DigiLocker webhook: missing or invalid userId in path');
       return res.status(400).json({ 
         success: false,
-        error: 'Missing user ID in callback URL' 
+        error: 'Missing or invalid user ID in callback URL' 
       });
     }
 
@@ -72,7 +72,7 @@ export default async function handler(
       // Store failure state
       try {
         await storeVerificationData(
-          userId as string,
+          userId,
           {
             requestId,
             status: false,
@@ -103,7 +103,7 @@ export default async function handler(
       // Store timeout/fetch error
       try {
         await storeVerificationData(
-          userId as string,
+          userId,
           {
             requestId,
             error: `Failed to fetch Aadhaar details: ${fetchErr.message}`,
@@ -128,7 +128,7 @@ export default async function handler(
       // Store invalid response error
       try {
         await storeVerificationData(
-          userId as string,
+          userId,
           {
             requestId,
             error: 'Invalid response from Aadhaar service',
@@ -155,7 +155,7 @@ export default async function handler(
 
     // Store the verification data successfully
     try {
-      await storeVerificationData(userId as string, aadhaarData, false);
+      await storeVerificationData(userId, aadhaarData, false);
     } catch (storeErr) {
       console.error('Failed to store success data:', storeErr);
     }
