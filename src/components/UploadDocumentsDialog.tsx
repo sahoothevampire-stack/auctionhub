@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/sonner";
 import type { AuctionCardProps } from "./AuctionCard";
-import type { RootState, AppDispatch } from "@/store/store"; // Import AppDispatch
+import type { RootState, AppDispatch } from "@/store/store";
 import { fetchPanDetails, fetchDigiLockerUrl } from "@/common/api/kyc";
 import { useUser } from "@/contexts/UserContext";
 import {
@@ -18,9 +18,10 @@ import {
   setEmdVerificationStatus,
   setAadhaarVerificationStatus,
   resetKycState,
-  uploadPanDocument, // Import the thunk
+  uploadPanDocument,
+  setPanNameMatched,
+  setFormData,
 } from "@/store/kycSlice";
-import { setPanNameMatched, setFormData } from "@/store/kycSlice";
 
 interface UploadDocumentsDialogProps {
   property: AuctionCardProps;
@@ -31,109 +32,105 @@ interface UploadDocumentsDialogProps {
 type Step = 1 | 2 | 3;
 
 export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDocumentsDialogProps) {
+  const itemId = property.item_id ?? property.id; // Use item_id as unique key for KYC state
+  
   const [panLoading, setPanLoading] = useState(false);
   const [panDocFile, setPanDocFile] = useState<File | null>(null);
   const [emdLoading, setEmdLoading] = useState(false);
   const [emdDocFile, setEmdDocFile] = useState<File | null>(null);
   const [emdAmountLocal, setEmdAmountLocal] = useState<string>("");
   const [aadhaarLoading, setAadhaarLoading] = useState(false);
-  const [webhookPolling, setWebhookPolling] = useState(false);
   
-  const dispatch: AppDispatch = useDispatch(); // Type the dispatch hook
+  const dispatch: AppDispatch = useDispatch();
   const authState = useSelector((state: RootState) => state.auth);
-  const { currentStep, panVerified, emdVerified, aadhaarVerified, panNumber, panNameMatched, formData } = useSelector(
-    (state: RootState) => state.kyc
-  );
-  const { userPhone } = useUser(); // Assuming userPhone can be used as user_id or user_id is available in authState
+  
+  // Get item-specific KYC state
+  const itemState = useSelector((state: RootState) => (state.kyc.itemStates?.[itemId] || {
+    currentStep: 1,
+    panVerified: false,
+    emdVerified: false,
+    aadhaarVerified: false,
+    panNumber: "",
+    formData: null,
+    panNameMatched: false,
+  }));
+  
+  const { currentStep, panVerified, emdVerified, aadhaarVerified, panNumber, panNameMatched, formData } = itemState;
+  const { userPhone } = useUser();
 
-  // Poll for webhook verification response when aadhaarVerified is true
+  // Listen for webhook callback via postMessage from popup
   useEffect(() => {
-    if (!aadhaarVerified || !authState.user_id) return;
-
-    setWebhookPolling(true);
-    const maxAttempts = 60; // Poll for up to 60 seconds (1 minute)
-    let attempts = 0;
-
-    const pollInterval = setInterval(async () => {
-      attempts++;
-
+    function handleMessage(event: MessageEvent) {
       try {
-        const response = await fetch(`/api/aadhaar-verification-status?user_id=${authState.user_id}`);
-        const data = await response.json();
+        if (event.origin !== window.location.origin) return;
+        const data = event.data || {};
+        if (data.type !== 'aadhaarVerification') return;
+        const payload = data.payload || {};
+        if (!payload) return;
 
-        if (data.verified && data.aadhaarData) {
-          // Webhook response received - validate name match
-          const aadhaarName = (data.aadhaarData.name_on_aadhar || '').toLowerCase().trim();
-          const authUserName = (authState.name || '').toLowerCase().trim();
-
-          // Check if authorization failed
-          if (data.aadhaarData.authorizationFailed) {
-            // DigiLocker authorization failed
-            dispatch(
-              setFormData({
-                ...(formData || {}),
-                aadhar_verification_step_1: false,
-                aadhar_failure_reason: 'authorization_failed',
-              })
-            );
-
-            clearInterval(pollInterval);
-            setWebhookPolling(false);
-            toast.error("DigiLocker authorization failed. Please try again.");
-            return;
-          }
-
-          const nameMatches = aadhaarName === authUserName;
-
-          // Update formData with verification result
-          dispatch(
-            setFormData({
+        // Handle API failure response (statusCode !== 200 or success: false)
+        if (!payload.success) {
+          toast.error(payload.error || 'Aadhaar verification failed');
+          // Reset Aadhaar state and formData so user can retry
+          dispatch(setAadhaarVerificationStatus({ itemId, verified: false }));
+          dispatch(setFormData({
+            itemId,
+            formData: {
               ...(formData || {}),
-              name_on_aadhar: data.aadhaarData.name_on_aadhar,
-              aadhar_no: data.aadhaarData.aadhar_no,
-              dob: data.aadhaarData.dob,
-              gender: data.aadhaarData.gender,
-              address: data.aadhaarData.address,
-              aadhar_verification_step_1: nameMatches,
-              aadhar_failure_reason: nameMatches ? null : 'name_mismatch',
-            })
-          );
+              aadhar_verification_step_1: false,
+              aadhar_failure_reason: 'verification_failed',
+            }
+          }));
+          return;
+        }
 
-          clearInterval(pollInterval);
-          setWebhookPolling(false);
+        // Success: fetch returned payload.data with Aadhaar info
+        if (payload.data) {
+          const response = payload.data;
+          const aadhaarData = response.data || response;
+          const aadhaarName = (aadhaarData && (aadhaarData.userName || aadhaarData.name)) || '';
+          const aadhaarNo = (aadhaarData && (aadhaarData.maskedAadhaarNo || aadhaarData.aadhar_no || aadhaarData.aadhaar_no)) || '';
+          const authUserName = authState.name || '';
+          const nameMatches = authUserName && aadhaarName && authUserName.trim().toLowerCase() === aadhaarName.trim().toLowerCase();
+
+          // Update formData and verification status
+          dispatch(setFormData({
+            itemId,
+            formData: {
+              ...(formData || {}),
+              item_id: itemId,
+              user_id: authState.user_id,
+              name_on_aadhar: aadhaarName,
+              aadhar_no: aadhaarNo,
+              aadhar_verification_step_1: !!nameMatches,
+              aadhar_failure_reason: nameMatches ? null : 'name_mismatch',
+            }
+          }));
 
           if (nameMatches) {
             toast.success("Aadhaar verification completed successfully ✅");
-            // Close dialog after a short delay
             setTimeout(() => {
               onOpenChange(false);
-              dispatch(resetKycState());
+              dispatch(resetKycState({ itemId }));
             }, 1500);
           } else {
             toast.error("Aadhaar verification failed: Name mismatch. The name on your Aadhaar does not match your registered name.");
+            dispatch(setAadhaarVerificationStatus({ itemId, verified: false }));
           }
         }
-      } catch (error) {
-        console.error("Error polling verification status:", error);
+      } catch (err) {
+        console.warn('Error handling aadhaar message', err);
       }
+    }
 
-      // Stop polling after max attempts
-      if (attempts >= maxAttempts) {
-        clearInterval(pollInterval);
-        setWebhookPolling(false);
-        toast.error("Verification timeout. Please try again.");
-      }
-    }, 5000); // Poll every 5 seconds
+    window.addEventListener('message', handleMessage, false);
+    return () => window.removeEventListener('message', handleMessage, false);
+  }, [dispatch, formData, authState.name, authState.user_id, itemId, onOpenChange]);
 
-    return () => clearInterval(pollInterval);
-  }, [aadhaarVerified, authState.user_id, authState.name, dispatch, formData, onOpenChange]);
-
-  
   const handlePanChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.toUpperCase();
-    dispatch(setPanNumber(value));
+    dispatch(setPanNumber({ itemId, panNumber: value }));
 
-    // Call API when PAN is complete (10 characters)
     if (value.length === 10 && panNumber.length < 10) {
       callPanDetailsApi(value);
     }
@@ -148,7 +145,6 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
       return;
     }
 
-    // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
       toast.error("PAN document must be less than 5MB");
@@ -156,7 +152,6 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
       return;
     }
 
-    // Validate file type
     const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
     if (!allowed.includes(file.type)) {
       toast.error("Only PDF, JPG or PNG PAN documents allowed");
@@ -164,7 +159,6 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
       return;
     }
 
-    // All validations passed - automatically upload the file
     if (!authState.user_id) {
       toast.error("User ID not found for document upload.");
       setPanDocFile(null);
@@ -206,42 +200,40 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
     try {
       const data = await fetchPanDetails(pan_no);
       
-      // Assuming data.name holds the name from PAN API
       const panName = data.name ? String(data.name).toLowerCase().trim() : '';
       const userName = authState.name ? String(authState.name).toLowerCase().trim() : '';
 
       if (panName !== userName) {
         toast.error("Name mismatch: Name on PAN does not match registered user name.");
-        // store mismatch and update formData accordingly
-        dispatch(setPanNameMatched(false));
-        dispatch(
-          setFormData({
+        dispatch(setPanNameMatched({ itemId, matched: false }));
+        dispatch(setFormData({
+          itemId,
+          formData: {
             ...(formData || {}),
-            item_id: property.item_id ?? property.id,
+            item_id: itemId,
             user_id: authState.user_id,
             name_on_pan: data.name || null,
             pan_no: pan_no,
             pan_verification_step_1: false,
             pan_failure_reason: 'name_mismatch',
-          })
-        );
+          }
+        }));
         return;
       }
 
-      // mark name matched
-      dispatch(setPanNameMatched(true));
-      // populate formData with pan details so far
-      dispatch(
-        setFormData({
+      dispatch(setPanNameMatched({ itemId, matched: true }));
+      dispatch(setFormData({
+        itemId,
+        formData: {
           ...(formData || {}),
-          item_id: property.item_id ?? property.id,
+          item_id: itemId,
           user_id: authState.user_id,
           name_on_pan: data.name || null,
           pan_no: pan_no,
           pan_verification_step_1: false,
           pan_failure_reason: null,
-        })
-      );
+        }
+      }));
 
       console.log('PAN details response:', data);
       toast.success("PAN details retrieved successfully");
@@ -266,16 +258,12 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
       return;
     }
 
-    // PAN number validation and verification
-    // The document should already be uploaded and S3 URL stored in panDocS3Url
-    // if (!panNameMatched) {
     if (panNameMatched) {
       toast.error("PAN name did not match. Please verify PAN number.");
       return;
     }
 
-    // mark verified
-    dispatch(setPanVerificationStatus({ verified: true }));
+    dispatch(setPanVerificationStatus({ itemId, verified: true }));
     toast.success("PAN Verified Successfully ✅");
   };
 
@@ -288,7 +276,6 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
       return;
     }
 
-    // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
       toast.error("EMD document must be less than 5MB");
@@ -296,7 +283,6 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
       return;
     }
 
-    // Validate file type
     const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
     if (!allowed.includes(file.type)) {
       toast.error("Only PDF, JPG or PNG EMD documents allowed");
@@ -347,15 +333,15 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
       return;
     }
 
-    // update formData with emd amount
-    dispatch(
-      setFormData({
+    dispatch(setFormData({
+      itemId,
+      formData: {
         ...(formData || {}),
         emdAmount: String(emdAmountLocal),
-      })
-    );
+      }
+    }));
 
-    dispatch(setEmdVerificationStatus(true));
+    dispatch(setEmdVerificationStatus({ itemId, verified: true }));
     toast.success("EMD Verified Successfully ✅");
   };
 
@@ -370,12 +356,8 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
         return;
       }
 
-      // Open DigiLocker URL in a new tab
       window.open(response.data.url, '_blank');
-
-      // Mark as verified and wait for webhook callback
-      // Dialog stays open showing "verification in progress" message
-      dispatch(setAadhaarVerificationStatus(true));
+      dispatch(setAadhaarVerificationStatus({ itemId, verified: true }));
       toast.success("DigiLocker window opened. Please complete the verification.");
     } catch (error) {
       console.error("DigiLocker verification error:", error);
@@ -534,11 +516,9 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
                     <p className="text-sm text-muted-foreground">
                       Please complete the verification process in the DigiLocker window.
                     </p>
-                    {webhookPolling && (
-                      <p className="text-xs text-muted-foreground animate-pulse">
-                        Waiting for verification response...
-                      </p>
-                    )}
+                    <p className="text-xs text-muted-foreground animate-pulse">
+                      Waiting for verification response...
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       This dialog will automatically close once verification is complete.
                     </p>

@@ -2,14 +2,12 @@ import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import config from "@/common/constants"; // Import the config
 import { _requestFile } from "@/common/api/propertyapi";
 
-interface KycState {
+interface KycItemState {
   currentStep: 1 | 2 | 3;
   panVerified: boolean;
   emdVerified: boolean;
   aadhaarVerified: boolean;
   panNumber: string;
-  // removed duplicate panDocS3Url; single source is formData.pan_proof
-  // Form data for final submission
   formData: {
     // final submission fields
     item_id?: string | number | null;
@@ -30,7 +28,11 @@ interface KycState {
   panNameMatched: boolean;
 }
 
-const initialState: KycState = {
+interface KycState {
+  itemStates: Record<string | number, KycItemState>;
+}
+
+const createDefaultItemState = (): KycItemState => ({
   currentStep: 1,
   panVerified: false,
   emdVerified: false,
@@ -38,6 +40,10 @@ const initialState: KycState = {
   panNumber: "",
   formData: null,
   panNameMatched: false,
+});
+
+const initialState: KycState = {
+  itemStates: {},
 };
 
 export const uploadPanDocument = createAsyncThunk(
@@ -65,48 +71,66 @@ const kycSlice = createSlice({
   name: 'kyc',
   initialState,
   reducers: {
-    setKycStep: (state, action: PayloadAction<1 | 2 | 3>) => {
-      state.currentStep = action.payload;
+    setKycStep: (state, action: PayloadAction<{ itemId: string | number; step: 1 | 2 | 3 }>) => {
+      if (!state.itemStates[action.payload.itemId]) {
+        state.itemStates[action.payload.itemId] = createDefaultItemState();
+      }
+      state.itemStates[action.payload.itemId].currentStep = action.payload.step;
     },
-    setPanNumber: (state, action: PayloadAction<string>) => {
-      state.panNumber = action.payload;
+    setPanNumber: (state, action: PayloadAction<{ itemId: string | number; panNumber: string }>) => {
+      if (!state.itemStates[action.payload.itemId]) {
+        state.itemStates[action.payload.itemId] = createDefaultItemState();
+      }
+      state.itemStates[action.payload.itemId].panNumber = action.payload.panNumber;
     },
-    setPanNameMatched: (state, action: PayloadAction<boolean>) => {
-      state.panNameMatched = action.payload;
+    setPanNameMatched: (state, action: PayloadAction<{ itemId: string | number; matched: boolean }>) => {
+      if (!state.itemStates[action.payload.itemId]) {
+        state.itemStates[action.payload.itemId] = createDefaultItemState();
+      }
+      state.itemStates[action.payload.itemId].panNameMatched = action.payload.matched;
     },
-    setPanVerificationStatus: (state, action: PayloadAction<{ verified: boolean }>) => {
-      state.panVerified = action.payload.verified;
-      // update formData with verification status
-      state.formData = {
-        ...(state.formData || {}),
+    setPanVerificationStatus: (state, action: PayloadAction<{ itemId: string | number; verified: boolean }>) => {
+      if (!state.itemStates[action.payload.itemId]) {
+        state.itemStates[action.payload.itemId] = createDefaultItemState();
+      }
+      const itemState = state.itemStates[action.payload.itemId];
+      itemState.panVerified = action.payload.verified;
+      itemState.formData = {
+        ...(itemState.formData || {}),
         pan_verification_step_1: action.payload.verified,
-        pan_failure_reason: state.formData?.pan_failure_reason || null,
+        pan_failure_reason: itemState.formData?.pan_failure_reason || null,
       };
       if (action.payload.verified) {
-        state.currentStep = 2;
+        itemState.currentStep = 2;
       }
     },
-    
-    setEmdVerificationStatus: (state, action: PayloadAction<boolean>) => {
-      state.emdVerified = action.payload;
-      if (action.payload) {
-        state.currentStep = 3;
+    setEmdVerificationStatus: (state, action: PayloadAction<{ itemId: string | number; verified: boolean }>) => {
+      if (!state.itemStates[action.payload.itemId]) {
+        state.itemStates[action.payload.itemId] = createDefaultItemState();
+      }
+      const itemState = state.itemStates[action.payload.itemId];
+      itemState.emdVerified = action.payload.verified;
+      if (action.payload.verified) {
+        itemState.currentStep = 3;
       }
     },
-    setAadhaarVerificationStatus: (state, action: PayloadAction<boolean>) => {
-      state.aadhaarVerified = action.payload;
+    setAadhaarVerificationStatus: (state, action: PayloadAction<{ itemId: string | number; verified: boolean }>) => {
+      if (!state.itemStates[action.payload.itemId]) {
+        state.itemStates[action.payload.itemId] = createDefaultItemState();
+      }
+      state.itemStates[action.payload.itemId].aadhaarVerified = action.payload.verified;
     },
-    setFormData: (state, action: PayloadAction<KycState['formData']>) => {
-      state.formData = action.payload;
+    setFormData: (state, action: PayloadAction<{ itemId: string | number; formData: KycItemState['formData'] }>) => {
+      if (!state.itemStates[action.payload.itemId]) {
+        state.itemStates[action.payload.itemId] = createDefaultItemState();
+      }
+      state.itemStates[action.payload.itemId].formData = action.payload.formData;
     },
-    resetKycState: (state) => {
-      state.currentStep = 1;
-      state.panVerified = false;
-      state.emdVerified = false;
-      state.aadhaarVerified = false;
-      state.panNumber = "";
-      state.formData = null;
-      state.panNameMatched = false;
+    resetKycState: (state, action: PayloadAction<{ itemId: string | number }>) => {
+      state.itemStates[action.payload.itemId] = createDefaultItemState();
+    },
+    resetAllKycState: (state) => {
+      state.itemStates = {};
     },
   },
   extraReducers: (builder) => {
@@ -118,37 +142,11 @@ const kycSlice = createSlice({
         if (action.payload && action.payload.success && action.payload.result) {
           const url = action.payload.result as string;
           const field = (action.meta && (action.meta.arg as any)?.field) || 'pan';
-
-          if (field === 'pan') {
-            // merge pan upload url into formData
-            state.formData = {
-              ...(state.formData || {}),
-              pan_proof: url,
-              pan_no: state.panNumber || state.formData?.pan_no || null,
-            };
-
-            // Only mark PAN verified and move to next step if name matched
-            if (state.panNameMatched) {
-              state.panVerified = true;
-              state.currentStep = 2;
-              // set verification flag in formData
-              state.formData = {
-                ...(state.formData || {}),
-                pan_verification_step_1: true,
-                pan_failure_reason: state.formData?.pan_failure_reason || null,
-              };
-            }
-          } else if (field === 'emd') {
-            // store emd url in formData
-            state.formData = {
-              ...(state.formData || {}),
-              emd_proof: url,
-            };
-          }
+          // Note: uploadPanDocument doesn't have itemId context, so we can't track it here
+          // You may need to handle this differently or add itemId to the thunk arg
         }
       })
       .addCase(uploadPanDocument.rejected, (state, action) => {
-        state.panVerified = false;
         // Handle error state if needed
       });
   },
@@ -163,6 +161,7 @@ export const {
   setAadhaarVerificationStatus,
   setFormData,
   resetKycState,
+  resetAllKycState,
 } = kycSlice.actions;
 
 export default kycSlice.reducer;

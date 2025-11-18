@@ -31,7 +31,7 @@ export function getCallbackBaseUrl() {
   }
   
   // Server-side or fallback: use env var (should be set in production)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const appUrl = config.APP_URL;
   if (!appUrl) {
     console.warn('NEXT_PUBLIC_APP_URL is not set; callback URLs may fail in server-side contexts.');
     return 'http://localhost:3000';
@@ -63,36 +63,6 @@ export async function fetchDigiLockerUrl(userAuthId) {
     throw new Error(`API error: ${response.status}`);
   }
 
-  return response.json();
-}
-
-/**
- * Fetch Aadhaar details from DigiLocker after user authorization
- * @param {string} requestId - Request ID from DigiLocker callback
- * @returns {Promise<Object>} Aadhaar details
- */
-export async function fetchAadhaarDetails(requestId, userAuthId) {
-  // Determine the base URL for the callback
-  const baseUrl = getCallbackBaseUrl();
-  const callbackUrl = `${baseUrl}/api/verify-aadhaar-webhook/${userAuthId}`;
-  
-  const response = await fetch(config.RC_BASE_URL + 'digilockeraadhaardetails', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + config.RC_DETAIL_PRIME_API_AUTH_TOKEN,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      user_id: config.RC_DETAIL_PRIME_API_USER_ID,
-      task: 'getEaadhaar',
-      callbackurl: callbackUrl,
-      requistID: requestId,
-    }).toString(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
 
   return response.json();
 }

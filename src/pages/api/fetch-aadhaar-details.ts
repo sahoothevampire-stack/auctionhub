@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { promises as fs } from 'fs';
-import path from 'path';
+import config from '@/common/constants';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -9,15 +8,58 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // For development and testing, return the sample Aadhaar success JSON
-    const filePath = path.join(process.cwd(), 'src', 'data', 'aadhaarsuccess.json');
-    const raw = await fs.readFile(filePath, 'utf8');
-    const json = JSON.parse(raw);
+    const { requestId, userId } = req.query;
 
-    // You could augment/check requestId/userId here if needed
-    return res.status(200).json(json);
+    if (!requestId || typeof requestId !== 'string') {
+      return res.status(400).json({ success: false, error: 'Missing or invalid requestId' });
+    }
+
+    if (!userId || typeof userId !== 'string') {
+      return res.status(400).json({ success: false, error: 'Missing or invalid userId' });
+    }
+
+    // Call DigiLocker API to fetch Aadhaar details using the requestId
+    console.log('Fetching Aadhaar details from DigiLocker for requestId:', requestId);
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const callbackUrl = `${appUrl}/api/verify-aadhaar-webhook/${userId}`;
+
+    const response = await fetch(config.RC_BASE_URL + 'digilockeraadhaardetails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.RC_DETAIL_PRIME_API_AUTH_TOKEN}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        user_id: config.RC_DETAIL_PRIME_API_USER_ID,
+        task: 'getEaadhaar',
+        callbackurl: callbackUrl,
+        requistID: requestId,
+      }).toString(),
+    });
+
+    if (!response.ok) {
+      console.error(`DigiLocker API error: ${response.status}`);
+      return res.status(response.status).json({ 
+        success: false, 
+        error: `DigiLocker API error: ${response.status}`,
+        statusCode: response.status 
+      });
+    }
+
+    const aadhaarData = await response.json();
+    console.log('Aadhaar details fetched successfully:', {
+      statusCode: aadhaarData.statusCode,
+      userName: aadhaarData?.data?.userName,
+    });
+
+    return res.status(200).json(aadhaarData);
   } catch (err: any) {
-    console.error('Failed to read aadhaar sample JSON:', err);
-    return res.status(500).json({ success: false, error: 'Failed to fetch Aadhaar details' });
+    console.error('Failed to fetch Aadhaar details:', err);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch Aadhaar details',
+      statusCode: 500
+    });
   }
 }
