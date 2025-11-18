@@ -49,7 +49,7 @@ const initialState: KycState = {
 export const uploadPanDocument = createAsyncThunk(
   'kyc/uploadPanDocument',
   async (
-    { file, userId, field }: { file: File; userId: string; field?: 'pan' | 'emd' },
+    { file, userId, field, itemId }: { file: File; userId: string; field?: 'pan' | 'emd'; itemId: string | number },
     { rejectWithValue }
   ) => {
     try {
@@ -142,8 +142,30 @@ const kycSlice = createSlice({
         if (action.payload && action.payload.success && action.payload.result) {
           const url = action.payload.result as string;
           const field = (action.meta && (action.meta.arg as any)?.field) || 'pan';
-          // Note: uploadPanDocument doesn't have itemId context, so we can't track it here
-          // You may need to handle this differently or add itemId to the thunk arg
+          const itemId = action.meta.arg.itemId;
+
+          // Defensive check: Ensure itemStates is initialized
+          if (!state.itemStates) {
+            state.itemStates = {};
+          }
+
+          if (!state.itemStates[itemId]) {
+            state.itemStates[itemId] = createDefaultItemState();
+          }
+          const itemState = state.itemStates[itemId];
+
+          if (field === 'pan') {
+            itemState.formData = {
+              ...(itemState.formData || {}),
+              pan_proof: url,
+              pan_no: itemState.panNumber || null,
+            };
+          } else if (field === 'emd') {
+            itemState.formData = {
+              ...(itemState.formData || {}),
+              emd_proof: url,
+            };
+          }
         }
       })
       .addCase(uploadPanDocument.rejected, (state, action) => {

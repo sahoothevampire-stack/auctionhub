@@ -51,6 +51,7 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
     emdVerified: false,
     aadhaarVerified: false,
     panNumber: "",
+    aadhaarNumber: "",
     formData: null,
     panNameMatched: false,
   }));
@@ -167,7 +168,7 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
 
     setPanLoading(true);
     try {
-      const resultAction = await dispatch(uploadPanDocument({ file, userId: authState.user_id, field: 'pan' }));
+      const resultAction = await dispatch(uploadPanDocument({ file, userId: authState.user_id, field: 'pan', itemId }));
       if (uploadPanDocument.fulfilled.match(resultAction)) {
         toast.success("PAN Document Uploaded Successfully ✅");
       } else {
@@ -298,7 +299,7 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
 
     setEmdLoading(true);
     try {
-      const resultAction = await dispatch(uploadPanDocument({ file, userId: authState.user_id, field: 'emd' }));
+      const resultAction = await dispatch(uploadPanDocument({ file, userId: authState.user_id, field: 'emd', itemId }));
       if (uploadPanDocument.fulfilled.match(resultAction)) {
         toast.success("EMD Document Uploaded Successfully ✅");
       } else {

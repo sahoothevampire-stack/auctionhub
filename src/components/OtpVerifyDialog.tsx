@@ -93,6 +93,7 @@ export function OtpVerifyDialog({ property = null, user, open, onOpenChange }: O
         
         onOpenChange(false);
         setOtp("");
+        window.location.reload(); // Reload the page after successful login
       } catch (err: any) {
         const msg = err?.message || 'OTP verification failed';
         toast.error(msg);
