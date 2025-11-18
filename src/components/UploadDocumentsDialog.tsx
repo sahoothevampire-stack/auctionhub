@@ -123,7 +123,7 @@ export function UploadDocumentsDialog({ property, open, onOpenChange }: UploadDo
         setWebhookPolling(false);
         toast.error("Verification timeout. Please try again.");
       }
-    }, 1000); // Poll every second
+    }, 5000); // Poll every 5 seconds
 
     return () => clearInterval(pollInterval);
   }, [aadhaarVerified, authState.user_id, authState.name, dispatch, formData, onOpenChange]);
